@@ -36,42 +36,11 @@
 #include <vector>
 #include <string>
 
-#include "sts.h"
 #include "barrier.h"
 
 #include "common.h"
+#include "sts.h"
 #include "syncbench.h"
-
-void init_sts_threads() {
-    enum TestType {RUN_ONCE, RUN_MANY, LOOP_ONCE, LOOP_MANY};
-    std::vector<TestType> ttypes = {RUN_MANY, RUN_ONCE, LOOP_MANY, LOOP_MANY, RUN_ONCE, LOOP_MANY};
-    std::vector<std::string> bmarks = {"TESTPR", "TESTFOR", "TESTFOR_0", "TESTPFOR_0", "TESTBAR", "TESTRED_0"};
-
-    setNumThreads(nthreads);
-    clearAssignments();
-
-    for (int t=0; t<nthreads; t++) {
-        for (int b=0; b<bmarks.size(); b++) {
-            if (ttypes[b] == RUN_ONCE) {
-                assign(bmarks[b], t);
-            }
-            else if (ttypes[b] == LOOP_ONCE) {
-                assign(bmarks[b], t, {{t,nthreads},{t+1,nthreads}});
-            }
-            else {
-                for (int r=0; r<innerreps; r++) {
-                    if (ttypes[b] == RUN_MANY) {
-                        assign(bmarks[b] + std::to_string(r), t);
-                    }
-                    else { // LOOP_MANY
-                        assign(bmarks[b] + std::to_string(r), t, {{t,nthreads},{t+1,nthreads}});
-                    }
-                }
-            }
-        }
-    }
-    nextStep();
-}
 
 int main(int argc, char **argv) {
     init(argc, argv);
@@ -79,25 +48,23 @@ int main(int argc, char **argv) {
     /* GENERATE REFERENCE TIME */
     reference("reference time 1", &refer);
 
-    init_sts_threads();
-
     /* TEST PARALLEL REGION */
-    benchmark("PARALLEL", &testpr);
+    benchmark("PARALLEL", &testpr, std::vector<STS_Task_Info>{{"TESTPR", RUN_MANY}});
 
     /* TEST FOR */
-    benchmark("FOR", &testfor);
+    benchmark("FOR", &testfor, std::vector<STS_Task_Info>{{"TESTFOR", RUN_ONCE},{"TESTFOR_0", LOOP_MANY}});
 
     /* TEST PARALLEL FOR */
-    benchmark("PARALLEL FOR", &testpfor);
+    benchmark("PARALLEL FOR", &testpfor, std::vector<STS_Task_Info>{{"TESTPFOR_0", LOOP_MANY}});
 
     /* TEST BARRIER */
-    benchmark("BARRIER", &testbar);
+    benchmark("BARRIER", &testbar, std::vector<STS_Task_Info>{{"TESTBAR", RUN_ONCE}});
 
     /* GENERATE NEW REFERENCE TIME */
     reference("reference time 3", &referred);
 
     /* TEST REDUCTION (1 var)  */
-    benchmark("REDUCTION", &testred);
+    benchmark("REDUCTION", &testred, std::vector<STS_Task_Info>{{"TESTRED_0", LOOP_MANY}});
 
     finalise();
     return EXIT_SUCCESS;
@@ -133,7 +100,6 @@ void testfor() {
 	    for (int j = 0; j < innerreps; j++) {
                 std::string taskName = "TESTFOR_0" + std::to_string(j);
 	        parallel_for(taskName, 0, nthreads, [=](size_t i) {
-printf("%d %d\n", i, j);
 	            delay(delaylength);
 	        });
 	    }
@@ -160,14 +126,14 @@ void testbar() {
 }
 
 void testred() {
-    TaskReduction<int> red = createTaskReduction("TESTRED_0", 0);
     for (int j = 0; j < innerreps; j++) {
         std::string taskName = "TESTRED_0" + std::to_string(j);
+        TaskReduction<int> red = createTaskReduction(taskName, 0);
         parallel_for(taskName, 0, nthreads, [=](size_t i) {
             delay(delaylength);
             collect(1);
         }, &red);
+        assert(red.getResult() == nthreads);
     }
-    assert(red.getResult() == innerreps * nthreads);
 }
 

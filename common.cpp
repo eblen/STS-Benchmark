@@ -37,6 +37,7 @@
 #include <omp.h>
 
 #include "common.h"
+#include "sts.h"
 
 #define CONF95 1.96
 
@@ -139,16 +140,48 @@ int getdelaylengthfromtime(double delaytime) {
 
 }
 
-unsigned long getinnerreps(void (*test)(void)) {
+void init_sts_threads() {
+    setNumThreads(nthreads);
+}
+
+/* Assign STS threads for a specific test */
+void assign_sts_threads(const std::vector<STS_Task_Info> &sti, unsigned long reps) {
+    clearAssignments();
+
+    for (int t=0; t<nthreads; t++) {
+        for (int b=0; b<sti.size(); b++) {
+            if (sti[b].type == RUN_ONCE) {
+                assign(sti[b].label, t);
+            }
+            else if (sti[b].type == LOOP_ONCE) {
+                assign(sti[b].label, t, {{t,nthreads},{t+1,nthreads}});
+            }
+            else {
+                for (int r=0; r<reps; r++) {
+                    if (sti[b].type == RUN_MANY) {
+                        assign(sti[b].label + std::to_string(r), t);
+                    }
+                    else { // LOOP_MANY
+                        assign(sti[b].label + std::to_string(r), t, {{t,nthreads},{t+1,nthreads}});
+                    }
+                }
+            }
+        }
+    }
+    nextStep();
+}
+
+unsigned long getinnerreps(void (*test)(void), const std::vector<STS_Task_Info> &sti = {}) {
     innerreps = 10L;  // some initial value
     double time = 0.0;
 
     while (time < targettesttime) {
+        if (sti.size() > 0) assign_sts_threads(sti, innerreps);
 	double start  = getclock();
 	test();
+        if (sti.size() > 0) wait();
 	time = (getclock() - start) * 1.0e6;
 	innerreps *=2;
-printf("%d\n", innerreps);
 	// Test to stop code if compiler is optimising reference time expressions away
 	if (innerreps > (targettesttime*1.0e15)) {
 	    printf("Compiler has optimised reference loop away, STOP! \n");
@@ -226,6 +259,7 @@ void printreferencefooter(char *name, double referencetime, double referencesd) 
 void init(int argc, char **argv)
 {
     nthreads = 10;
+    init_sts_threads();
 
     parse_args(argc, argv);
 
@@ -301,19 +335,22 @@ void finalisetest(char *name) {
 }
 
 /* Function to run a microbenchmark test*/
-void benchmark(char *name, void (*test)(void))
+
+void benchmark(char *name, void (*test)(void), const std::vector<STS_Task_Info> &sti)
 {
     int k;
     double start;
 
     // Calculate the required number of innerreps
-    innerreps = getinnerreps(test);
+    innerreps = getinnerreps(test, sti);
 
     intitest(name);
 
     for (k=0; k<=outerreps; k++) {
+    assign_sts_threads(sti, innerreps);
 	start = getclock();
 	test();
+        wait();
 	times[k] = (getclock() - start) * 1.0e6 / (double) innerreps;
     }
 

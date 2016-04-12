@@ -70,14 +70,14 @@ int main(int argc, char **argv) {
     return EXIT_SUCCESS;
 }
 
-void refer() {
+void refer(const std::vector<std::string> &task_labels) {
     int j;
     for (j = 0; j < innerreps; j++) {
 	delay(delaylength);
     }
 }
 
-void referred() {
+void referred(const std::vector<std::string> &task_labels) {
     int j;
     int aaaa = 0;
     for (j = 0; j < innerreps; j++) {
@@ -86,36 +86,33 @@ void referred() {
     }
 }
 
-void testpr() {
+void testpr(const std::vector<std::string> &task_labels) {
     for (int j = 0; j < innerreps; j++) {
-        std::string taskName = "TESTPR" + std::to_string(j);
-        run(taskName, [=]() {
+        run(task_labels[j], [=]() {
 	        delay(delaylength);
 	    });
     }
 }
 
-void testfor() {
+void testfor(const std::vector<std::string> &task_labels) {
     run("TESTFOR", [=]() {
 	    for (int j = 0; j < innerreps; j++) {
-                std::string taskName = "TESTFOR_0" + std::to_string(j);
-	        parallel_for(taskName, 0, nthreads, [=](size_t i) {
+	        parallel_for(task_labels[j+1], 0, nthreads, [=](size_t i) {
 	            delay(delaylength);
 	        });
 	    }
     });
 }
 
-void testpfor() {
+void testpfor(const std::vector<std::string> &task_labels) {
     for (int j = 0; j < innerreps; j++) {
-        std::string taskName = "TESTPFOR_0" + std::to_string(j);
-        parallel_for(taskName, 0, nthreads, [=](size_t i){
+        parallel_for(task_labels[j], 0, nthreads, [=](size_t i){
             delay(delaylength);
         });
     }
 }
 
-void testbar() {
+void testbar(const std::vector<std::string> &task_labels) {
     static Barrier b(nthreads);
     run("TESTBAR", [=]() {
         for (int j = 0; j < innerreps; j++) {
@@ -125,11 +122,10 @@ void testbar() {
     });
 }
 
-void testred() {
+void testred(const std::vector<std::string> &task_labels) {
     for (int j = 0; j < innerreps; j++) {
-        std::string taskName = "TESTRED_0" + std::to_string(j);
-        TaskReduction<int> red = createTaskReduction(taskName, 0);
-        parallel_for(taskName, 0, nthreads, [=](size_t i) {
+        TaskReduction<int> red = createTaskReduction(task_labels[j], 0);
+        parallel_for(task_labels[j], 0, nthreads, [=](size_t i) {
             delay(delaylength);
             collect(1);
         }, &red);

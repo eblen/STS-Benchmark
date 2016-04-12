@@ -154,41 +154,47 @@ void init_sts_threads() {
 }
 
 /* Assign STS threads for a specific test */
-void assign_sts_threads(const std::vector<STS_Task_Info> &sti, unsigned long reps) {
-    clearAssignments();
+std::vector<std::string> assign_sts_threads(const std::vector<STS_Task_Info> &sti, unsigned long reps) {
+    std::vector<std::string> task_labels;
 
+    clearAssignments();
     for (int t=0; t<nthreads; t++) {
         for (int b=0; b<sti.size(); b++) {
             if (sti[b].type == RUN_ONCE) {
-                assign(sti[b].label, t);
+                task_labels.push_back(sti[b].label);
+                assign(task_labels.back(), t);
             }
             else if (sti[b].type == LOOP_ONCE) {
-                assign(sti[b].label, t, {{t,nthreads},{t+1,nthreads}});
+                task_labels.push_back(sti[b].label);
+                assign(task_labels.back(), t, {{t,nthreads},{t+1,nthreads}});
             }
             else {
                 for (int r=0; r<reps; r++) {
                     if (sti[b].type == RUN_MANY) {
-                        assign(sti[b].label + std::to_string(r), t);
+                        task_labels.push_back(sti[b].label + std::to_string(r));
+                        assign(task_labels.back(), t);
                     }
                     else { // LOOP_MANY
-                        assign(sti[b].label + std::to_string(r), t, {{t,nthreads},{t+1,nthreads}});
+                        task_labels.push_back(sti[b].label + std::to_string(r));
+                        assign(task_labels.back(), t, {{t,nthreads},{t+1,nthreads}});
                     }
                 }
             }
         }
     }
     nextStep();
+    return task_labels;
 }
 
-unsigned long getinnerreps(void (*test)(void), const std::vector<STS_Task_Info> &sti = {}) {
+unsigned long getinnerreps(void (*test)(const std::vector<std::string> &), const std::vector<STS_Task_Info> &sti = {}) {
     innerreps = 10L;  // some initial value
     double time = 0.0;
-
+    std::vector<std::string> task_labels;
     while (time < targettesttime) {
-        if (sti.size() > 0) assign_sts_threads(sti, innerreps);
+        if (sti.size() > 0)  task_labels = assign_sts_threads(sti, innerreps);
 	double start  = getclock();
-	test();
-        if (sti.size() > 0) wait();
+	test(task_labels);
+    if (sti.size() > 0) wait();
 	time = (getclock() - start) * 1.0e6;
 	innerreps *=2;
 	// Test to stop code if compiler is optimising reference time expressions away
@@ -307,10 +313,10 @@ void initreference(char *name) {
 }
 
 /* Calculate the reference time. */
-void reference(char *name, void (*refer)(void)) {
+void reference(char *name, void (*refer)(const std::vector<std::string> &)) {
     int k;
     double start;
-
+    std::vector<std::string> dummy_task_labels;
     // Calculate the required number of innerreps
     innerreps = getinnerreps(refer);
 
@@ -318,7 +324,7 @@ void reference(char *name, void (*refer)(void)) {
 
     for (k = 0; k <= outerreps; k++) {
 	start = getclock();
-	refer();
+	refer(dummy_task_labels);
 	times[k] = (getclock() - start) * 1.0e6 / (double) innerreps;
     }
 
@@ -345,7 +351,7 @@ void finalisetest(char *name) {
 
 /* Function to run a microbenchmark test*/
 
-void benchmark(char *name, void (*test)(void), const std::vector<STS_Task_Info> &sti)
+void benchmark(char *name, void (*test)(const std::vector<std::string> &), const std::vector<STS_Task_Info> &sti)
 {
     int k;
     double start;
@@ -356,10 +362,10 @@ void benchmark(char *name, void (*test)(void), const std::vector<STS_Task_Info> 
     intitest(name);
 
     for (k=0; k<=outerreps; k++) {
-    assign_sts_threads(sti, innerreps);
+    std::vector<std::string> task_labels = assign_sts_threads(sti, innerreps);
 	start = getclock();
-	test();
-        wait();
+	test(task_labels);
+    wait();
 	times[k] = (getclock() - start) * 1.0e6 / (double) innerreps;
     }
 

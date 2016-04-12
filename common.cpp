@@ -60,6 +60,7 @@ double testsd;		 // The standard deviation in the test time in
 
 void usage(char *argv[]) {
     printf("Usage: %s.x \n"
+           "\t--num-threads <num-threads> (default 10)\n"
 	   "\t--outer-repetitions <outer-repetitions> (default %d)\n"
 	   "\t--test-time <target-test-time> (default %0.2f microseconds)\n"
 	   "\t--delay-time <delay-time> (default %0.4f microseconds)\n"
@@ -80,7 +81,15 @@ void parse_args(int argc, char *argv[]) {
 		usage(argv);
 		exit(EXIT_FAILURE);
 	    }
-		
+	
+        } else if (strcmp(argv[arg], "--num-threads") == 0) {
+            nthreads = atoi(argv[++arg]);
+	    if (nthreads < 1) {
+		printf("Invalid integer:--num-threads: %s\n", argv[arg]);
+		usage(argv);
+		exit(EXIT_FAILURE);
+	    }
+	
 	} else if (strcmp(argv[arg], "--outer-repetitions") == 0) {
 	    outerreps = atoi(argv[++arg]);
 	    if (outerreps == 0) {
@@ -258,10 +267,10 @@ void printreferencefooter(char *name, double referencetime, double referencesd) 
 
 void init(int argc, char **argv)
 {
-    nthreads = 10;
-    init_sts_threads();
-
     parse_args(argc, argv);
+
+    if (nthreads < 1) nthreads = 10;
+    init_sts_threads();
 
     if (outerreps == -1) {
 	outerreps = DEFAULT_OUTER_REPS;

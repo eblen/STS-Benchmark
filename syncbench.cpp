@@ -48,12 +48,6 @@ int main(int argc, char **argv) {
     /* GENERATE REFERENCE TIME */
     reference("reference time 1", &refer);
 
-    /* TEST PARALLEL REGION */
-    benchmark("PARALLEL", &testpr, std::vector<STS_Task_Info>{{"TESTPR", RUN_MANY}});
-
-    /* TEST FOR */
-    benchmark("FOR", &testfor, std::vector<STS_Task_Info>{{"TESTFOR", RUN_ONCE},{"TESTFOR_0", LOOP_MANY}});
-
     /* TEST PARALLEL FOR */
     benchmark("PARALLEL FOR", &testpfor, std::vector<STS_Task_Info>{{"TESTPFOR_0", LOOP_MANY}});
 
@@ -114,7 +108,7 @@ void testpfor(const std::vector<std::string> &task_labels) {
 
 void testbar(const std::vector<std::string> &task_labels) {
     static Barrier b(nthreads);
-    run("TESTBAR", [=]() {
+    parallel_for("TESTBAR", 0, nthreads, [=](size_t i) {
         for (int j = 0; j < innerreps; j++) {
             delay(delaylength);
             b.enter();

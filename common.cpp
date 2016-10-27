@@ -40,7 +40,7 @@
 #include <omp.h>
 
 #include "common.h"
-#include "sts.h"
+#include "sts/sts.h"
 
 #define CONF95 1.96
 
@@ -152,40 +152,60 @@ int getdelaylengthfromtime(double delaytime) {
 
 }
 
-void init_sts_threads() {
-    setNumThreads(nthreads);
+void setAffinity(int coreId) {
+    CPU_ZERO(&mask);
+    cpu_set_t mask;
+    CPU_SET(coreId, &mask);
+    if (sched_setaffinity(0, sizeof(mask), &mask) != 0)
+    {
+        perror("sched_setaffinity");
+    }
 }
 
+void init_sts_threads() {
+    STS::startup(nthreads);
+    // Set thread affinities here if needed
+    // for (int i=0; i<nthreads; i++) {
+    //    setAffinity(i);
+    // }
+}
 /* Assign STS threads for a specific test */
 std::vector<std::string> assign_sts_threads(const std::vector<STS_Task_Info> &sti, unsigned long reps) {
     std::vector<std::string> task_labels;
 
-    clearAssignments();
+    static STS *sts = nullptr;
+    if (sts == nullptr) {
+        sts = new STS("bmark");
+    }
+    else {
+        sts->wait();
+    }
+    sts->clearAssignments();
     for (int t=0; t<nthreads; t++) {
         for (int b=0; b<sti.size(); b++) {
             if (sti[b].type == RUN_ONCE) {
                 task_labels.push_back(sti[b].label);
-                assign(task_labels.back(), t);
+                sts->assign(task_labels.back(), t);
             }
             else if (sti[b].type == LOOP_ONCE) {
                 task_labels.push_back(sti[b].label);
-                assign(task_labels.back(), t, {{t,nthreads},{t+1,nthreads}});
+                sts->assign(task_labels.back(), t, {{t,nthreads},{t+1,nthreads}});
             }
             else {
                 for (int r=0; r<reps; r++) {
                     if (sti[b].type == RUN_MANY) {
                         task_labels.push_back(sti[b].label + std::to_string(r));
-                        assign(task_labels.back(), t);
+                        sts->assign(task_labels.back(), t);
                     }
                     else { // LOOP_MANY
                         task_labels.push_back(sti[b].label + std::to_string(r));
-                        assign(task_labels.back(), t, {{t,nthreads},{t+1,nthreads}});
+                        sts->assign(task_labels.back(), t, {{t,nthreads},{t+1,nthreads}});
                     }
                 }
             }
         }
     }
-    nextStep();
+    sts->nextStep();
     return task_labels;
 }
 
@@ -307,7 +327,8 @@ void init(int argc, char **argv)
 
 void finalise(void) {
     free(times);
-
+    STS::getInstance("bmark")->wait();
+    STS::shutdown();
 }
 
 void initreference(char *name) {

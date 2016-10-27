@@ -34,6 +34,8 @@
 #ifndef SYNCBENCH_H
 #define SYNCBENCH_H
 
+#define sts STS::getInstance("bmark")
+
 void refer(const std::vector<std::string> &);
 
 void referatom(const std::vector<std::string> &);

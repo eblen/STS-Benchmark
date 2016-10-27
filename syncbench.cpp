@@ -39,10 +39,10 @@
 #include <vector>
 #include <string>
 
-#include "barrier.h"
+#include "sts/barrier.h"
 
 #include "common.h"
-#include "sts.h"
+#include "sts/sts.h"
 #include "syncbench.h"
 
 int main(int argc, char **argv) {
@@ -85,16 +85,16 @@ void referred(const std::vector<std::string> &task_labels) {
 
 void testpr(const std::vector<std::string> &task_labels) {
     for (int j = 0; j < innerreps; j++) {
-        run(task_labels[j], [=]() {
+        sts->run(task_labels[j], [=]() {
 	        delay(delaylength);
 	    });
     }
 }
 
 void testfor(const std::vector<std::string> &task_labels) {
-    run("TESTFOR", [=]() {
+    sts->run("TESTFOR", [=]() {
 	    for (int j = 0; j < innerreps; j++) {
-	        parallel_for(task_labels[j+1], 0, nthreads, [=](size_t i) {
+	        sts->parallel_for(task_labels[j+1], 0, nthreads, [=](size_t i) {
 	            delay(delaylength);
 	        });
 	    }
@@ -103,15 +103,15 @@ void testfor(const std::vector<std::string> &task_labels) {
 
 void testpfor(const std::vector<std::string> &task_labels) {
     for (int j = 0; j < innerreps; j++) {
-        parallel_for(task_labels[j], 0, nthreads, [=](size_t i){
+        sts->parallel_for(task_labels[j], 0, nthreads, [=](size_t i){
             delay(delaylength);
         });
     }
 }
 
 void testbar(const std::vector<std::string> &task_labels) {
-    static Barrier b(nthreads);
-    parallel_for("TESTBAR", 0, nthreads, [=](size_t i) {
+    static MMBarrier b(nthreads);
+    sts->parallel_for("TESTBAR", 0, nthreads, [=](size_t i) {
         for (int j = 0; j < innerreps; j++) {
             delay(delaylength);
             b.enter();
@@ -121,10 +121,10 @@ void testbar(const std::vector<std::string> &task_labels) {
 
 void testred(const std::vector<std::string> &task_labels) {
     for (int j = 0; j < innerreps; j++) {
-        TaskReduction<int> red = createTaskReduction(task_labels[j], 0);
-        parallel_for(task_labels[j], 0, nthreads, [=](size_t i) {
+        TaskReduction<int> red = sts->createTaskReduction(task_labels[j], 0);
+        sts->parallel_for(task_labels[j], 0, nthreads, [=](size_t i) {
             delay(delaylength);
-            collect(1);
+            sts->collect(1);
         }, &red);
         assert(red.getResult() == nthreads);
     }

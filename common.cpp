@@ -38,6 +38,7 @@
 #include <string.h>
 #include <math.h>
 #include <omp.h>
+#include <sched.h>
 
 #include "common.h"
 #include "sts/sts.h"
@@ -153,8 +154,8 @@ int getdelaylengthfromtime(double delaytime) {
 }
 
 void setAffinity(int coreId) {
-    CPU_ZERO(&mask);
     cpu_set_t mask;
+    CPU_ZERO(&mask);
     CPU_SET(coreId, &mask);
     if (sched_setaffinity(0, sizeof(mask), &mask) != 0)
     {
@@ -165,9 +166,9 @@ void setAffinity(int coreId) {
 void init_sts_threads() {
     STS::startup(nthreads);
     // Set thread affinities here if needed
-    // for (int i=0; i<nthreads; i++) {
-    //    setAffinity(i);
-    // }
+    STS::getInstance("default")->parallel_for("set_affinities", 0, nthreads, [&](int i) {
+        setAffinity(i);
+    });
 }
 /* Assign STS threads for a specific test */
 std::vector<std::string> assign_sts_threads(const std::vector<STS_Task_Info> &sti, unsigned long reps) {
